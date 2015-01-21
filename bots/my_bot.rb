@@ -6,11 +6,15 @@ class MyBot < BaseBot
 		@position = [0,0]
 		@hero_no = "1"
 		@life = 100
+		@healing = false 
 	end
 
   def move state
 	@hero_no = state["hero"]["id"].to_s
 	@life =  state["hero"]["life"]
+	if @life >= 95
+		@healing = false
+	end
 	
 	#puts "hero munber = "+ state["hero"]["id"].to_s
     @game = Game.new state
@@ -29,10 +33,16 @@ class MyBot < BaseBot
 		@new_map << @mp[i..i+(@sz-1)].to_s + "\n"
 	end
 	
-	if @life < 50 
+	if @life < 50 || @healing
+		puts "I'm dayyyyunnnnn"
+		@healing = true
 		find_tavern
 	else
-		find_mine
+		if state['hero']['mineCount'] < 1
+			find_mine
+		else
+			find_flanders
+		end
 	end
 	
 	if @thread_results.empty?
@@ -53,6 +63,21 @@ class MyBot < BaseBot
 	follow_path
   end
 
+  def find_flanders
+	@game.heroes_locs.each do |key, value|
+		if key != @hero_no
+			hero_pos = [value[1],value[0]]		#switch coordinates
+			@threads<< Thread.new{thread_find_paths(@new_map, @position, hero_pos)}
+		end
+	end
+	
+	@thread_results = []
+	@threads.each do |t|
+		t.join
+		@thread_results <<  t[:output]
+	end
+  end
+  
   def find_tavern
 	puts "Gettin that life Bitch!"
 	@game.taverns_locs.each do |locs|
