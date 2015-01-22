@@ -38,7 +38,7 @@ module TileMap
 
     # parse a string contining a tile map into a nested array
 
-    def initialize(map_str, start, goal)
+    def initialize(map_str, start, goal, hero_no)
       @tiles = []
 	  map_ar = map_str.split(/\n/)
 	  #map_ar = map_str.scan(/.{sz}/)
@@ -48,7 +48,7 @@ module TileMap
         (0.. line.length-2).step(2).each do |i|
 			c = line[i] + line[i+1]
           @tiles.last << case c
-                         when "@1"
+                         when "@" + hero_no
                            START
                          when "  ", "XX"
                            PLAINS
