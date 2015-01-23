@@ -54,7 +54,7 @@ module TileMap
                            PLAINS
                          #when "*"
                           # FOREST
-                         when "@2","@3","@4"
+                         when "@2","@3","@4", "@1"
                            MOUNTAIN
                          when "##", "[]", "--", "$-"
                            WATER

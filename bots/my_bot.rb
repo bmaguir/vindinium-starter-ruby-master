@@ -10,6 +10,9 @@ class MyBot < BaseBot
 	end
 
   def move state  
+
+	start_time = Time.now.to_f
+  
 	@hero_no = state["hero"]["id"].to_s
 	@life =  state["hero"]["life"]
 	@mineCount = state['hero']['mineCount']
@@ -18,14 +21,14 @@ class MyBot < BaseBot
 	end
     @game = Game.new state
 	
-	my_pos = [ @game.heroes_locs[@hero_no][1], @game.heroes_locs[@hero_no][0]]
-	@position = my_pos
+	#switch x and y values 
+	@position = [ @game.heroes_locs[@hero_no][1], @game.heroes_locs[@hero_no][0]]
 	
 	@threads = []
 	
 	@mp = state['game']['board']['tiles']		#get map and line size from state
 	@sz = state['game']['board']['size']
-	@sz = @sz*2
+	@sz = @sz*2									#size*2 for double chars in map
 	@new_map = ""
 	(0..@mp.length - 1).step(@sz).each do |i|		#add \n to get split in find path
 		@new_map << @mp[i..i+(@sz-1)].to_s + "\n"
@@ -33,18 +36,21 @@ class MyBot < BaseBot
 	
 	path_cost = Path_Cost.new(@life, @mineCount, @game.mines_locs.length, @sz, @hero_no)
 	
+	#get distance and paths to taverns
 	tavern_paths = []
 	tavern_paths = find_tavern
 	tavern_paths.each do |tp|
 		path_cost.add_tavern(tp, @position)
 	end
 
+	#get distance and paths to mines
 	mine_paths = []
 	mine_paths = find_mine
 	mine_paths.each do |mp|
 		path_cost.add_mine(mp, @position)
 	end
 
+	#populate array of enemies with position, life and mine count
 	enemies =[]
 	@game.heroes_locs.each do |key, value|
 		if key != @hero_no
@@ -55,24 +61,24 @@ class MyBot < BaseBot
 		end
 	end
 	
+	#add array of eneies, path_cost calculates cost function for each enemy in each direction
 	path_cost.add_enemy(enemies, @position, @new_map)
 	
 	puts "North: " + path_cost.north.to_s
 	puts "South: " + path_cost.south.to_s
 	puts "East: " + path_cost.east.to_s
 	puts "West: " + path_cost.west.to_s
-	
-#=end
+
 	thread_results = []
 	
 	if @life < 50 || @healing
 		puts "I'm dayyyyunnnnn"
 		@healing = true
-		thread_results = find_tavern
+		thread_results = tavern_paths
 	else
-		if state['hero']['mineCount'] < 1
+		if state['hero']['mineCount'] < (@game.mines_locs.length/4)
 			puts "more mines!"
-			thread_results = find_mine
+			thread_results = mine_paths
 		else
 			thread_results = find_flanders
 		end
@@ -91,9 +97,14 @@ class MyBot < BaseBot
 			@path = r
 		end
 	end
-	@path.delete_at(0)		#removes current position
-	#end
+	@path.delete_at(0)		#removes original position from A* path
 	puts @life
+	
+	# Returns second since epoch which includes microseconds
+	end_time = Time.now.to_f
+	time_taken = end_time - start_time
+	puts "time taken in move  = " + time_taken.to_s
+	
 	follow_path
   end
 
@@ -147,26 +158,24 @@ class MyBot < BaseBot
 	return results
   end
   
-  def follow_path 
-	next_pos = @path[0]
-	@path.delete_at(0)
-	
-	#puts next_pos[0].to_s + " , " + next_pos[1].to_s + " my pos = " + @position[0].to_s + " , " + @position[1].to_s
-	if next_pos[0] > @position[0]
-		puts "east"
-		return "East"
-	elsif next_pos[0] < @position[0]
-		puts "west"
-		return "West"
-	end
-	
-	if next_pos[1]>@position[1]
-		puts "south"
-		return "South"
-	elsif next_pos[1]<@position[1]
-		puts "north"
-		return "North"
-	end
+  def follow_path 		#gets first step of path, converts it into either north, south, west or east
+		next_pos = @path[0]	
+
+		if next_pos[0] > @position[0]
+			puts "east"
+			return "East"
+		elsif next_pos[0] < @position[0]
+			puts "west"
+			return "West"
+		end
+		
+		if next_pos[1]>@position[1]
+			puts "south"
+			return "South"
+		elsif next_pos[1]<@position[1]
+			puts "north"
+			return "North"
+		end
 	end
   
   def next_mine state, heroes, mines
