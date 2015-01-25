@@ -1,12 +1,18 @@
 
 class MyBot < BaseBot
 
-	def initialize
+attr_accessor :hashTable
+	
+	def initialize hashTable
+		@hashTable = hashTable
 		@path = Array.new
 		@position = [0,0]
 		@hero_no = "1"
 		@life = 100
 		@healing = false 
+		@curr_state = nil
+		@episode_array = []
+		@greed = 0.1
 	end
 
   def move state  
@@ -19,6 +25,34 @@ class MyBot < BaseBot
 	if @life >= 95
 		@healing = false
 	end
+	
+	if @curr_state == nil
+		@curr_state = Game.new(state)
+		@prev_state = @curr_state
+	else
+		@prev_state = @curr_state
+		@curr_state = Game.new(state)
+	end
+	
+	#has episode ended
+	case 
+	when mine_captured?
+		puts "captured mine "
+		ep_end = "mine"
+		calculate_rewards ep_end
+	when got_health?
+		puts "got health"
+		ep_end = "tavern"
+		calculate_rewards ep_end
+	when hero_died?
+		puts "I died"
+		ep_end = "died"
+		calculate_rewards ep_end
+#	when enemy_died?
+#		calculate_rewards ep_end
+#		ep_end = "kill"
+	end
+	
     @game = Game.new state
 	
 	#switch x and y values 
@@ -39,66 +73,87 @@ class MyBot < BaseBot
 	#get distance and paths to taverns
 	tavern_paths = []
 	tavern_paths = find_tavern
+	closest_tavern = tavern_paths[0]
+	min = tavern_paths[0].length
 	tavern_paths.each do |tp|
-		path_cost.add_tavern(tp, @position)
+		if tp.length<min
+			min = tp.length
+			closest_tavern = tp
+		end
 	end
 
 	#get distance and paths to mines
 	mine_paths = []
 	mine_paths = find_mine
+	closest_mine = mine_paths[0]
+	min = mine_paths[0].length
 	mine_paths.each do |mp|
-		path_cost.add_mine(mp, @position)
+		if mp.length < min
+			min = mp.length
+			closest_mine = mp
+		end
 	end
-
-	#populate array of enemies with position, life and mine count
+	
 	enemies =[]
-	@game.heroes_locs.each do |key, value|
-		if key != @hero_no
-			hero_pos = [value[1],value[0]]		#switch coordinates
-			l =  state["game"]["heroes"][key.to_i-1]["life"]
-			mC =  state["game"]["heroes"][key.to_i-1]["mineCount"]
-			enemies<< Enemy.new(l, mC, hero_pos)
+	enemies = find_flanders
+	closest_enemy = find_flanders[0]
+	min = closest_enemy.length
+	enemy_index =0
+	enemies.each_with_index do |e, i|
+		if e.length< min
+			min = e.length
+			closest_enemy = e
+			enemy_index = i
 		end
 	end
 	
-	#add array of eneies, path_cost calculates cost function for each enemy in each direction
-	path_cost.add_enemy(enemies, @position, @new_map)
+	myL = state_of_life @life
+	myW = state_of_wealth @mine_count, @curr_state.mines_locs.length
+	eL = state_of_life l =  state["game"]["heroes"][enemy_index]["life"]
+	eW = state_of_wealth state["game"]["heroes"][enemy_index]["mineCount"], @curr_state.mines_locs.length
+	eD = state_of_enemy_dist closest_enemy.length
+	mD = state_of_dist closest_mine.length
+	tD = state_of_dist closest_tavern.length
 	
-	puts "North: " + path_cost.north.to_s
-	puts "South: " + path_cost.south.to_s
-	puts "East: " + path_cost.east.to_s
-	puts "West: " + path_cost.west.to_s
-
-	thread_results = []
+	#key is index for state value hash table
+	key = myL + myW + eL + eD + eW + mD + tD
 	
-	if @life < 50 || @healing
-		puts "I'm dayyyyunnnnn"
-		@healing = true
-		thread_results = tavern_paths
+	move_choice = @hashTable[key]
+	
+	r = Random.new
+	rNext = r.rand
+	if rNext < 1.0 - @greed
+		next_move = move_choice.index(move_choice.max)
 	else
-		if state['hero']['mineCount'] < (@game.mines_locs.length/4)
-			puts "more mines!"
-			thread_results = mine_paths
-		else
-			thread_results = find_flanders
+		rChoice = r.rand(0..300)
+		rSum = move_choice[0]
+		i = 0
+		while rSum <= rChoice
+			rSum += move_choice[i]
+			i += 1
 		end
+		puts i
+			next_move = i
 	end
 	
-	if thread_results.empty?
-		puts "no more mines"
-		find_tavern
+	
+	
+	#keep track of actions and states for rewards
+	@episode_array << [key, next_move]
+	
+	case next_move
+	when 0
+		@path = closest_tavern
+		puts "going to tavern"
+	when 1
+		@path = closest_mine
+		puts "going to Mine"
+	when 2
+		@path = closest_enemy
+		puts "going to kill"
+	else
+		raise "invalide next move"
 	end
-	puts thread_results.length
-	min = thread_results[0].length		#find the shortest path to a mine
-	@path = thread_results[0]
-	thread_results.each do |r|
-		if r.length < min
-			min = r.length
-			@path = r
-		end
-	end
-	@path.delete_at(0)		#removes original position from A* path
-	puts @life
 	
 	# Returns second since epoch which includes microseconds
 	end_time = Time.now.to_f
@@ -109,57 +164,38 @@ class MyBot < BaseBot
   end
 
   def find_flanders
-	threads =[]
+	results = []
 	@game.heroes_locs.each do |key, value|
 		if key != @hero_no
 			hero_pos = [value[1],value[0]]		#switch coordinates
-			threads<< Thread.new{thread_find_paths(@new_map, @position, hero_pos)}
+			results << thread_find_paths(@new_map, @position, hero_pos)
 		end
-	end
-	
-	results = []
-	threads.each do |t|
-		t.join
-		results <<  t[:output]
 	end
 	return results
   end
   
   def find_tavern
-	puts "Gettin that life Bitch!"
-	threads =[]
+	results = []
 	@game.taverns_locs.each do |locs|
 		tavern_pos = [locs[1],locs[0]]		#switch coordinates
-		threads<< Thread.new{thread_find_paths(@new_map, @position, tavern_pos)}
-	end
-	
-	results = []
-	threads.each do |t|
-		t.join
-		results <<  t[:output]
+		results << thread_find_paths(@new_map, @position, tavern_pos)
 	end
 	return results
   end
   
   def find_mine
-  puts "gettig them minezzzzz"
-	threads =[]
+	results = []
 	@game.mines_locs.each do |key, value|
 		if value != @hero_no					#if not our mine already
 			mine_pos = [key[1],key[0]]		#switch coordinates
-			threads<< Thread.new{thread_find_paths(@new_map, @position, mine_pos)}
+			results<<thread_find_paths(@new_map, @position, mine_pos)
 		end
-	end
-	results = []
-	threads.each do |t|
-		t.join
-		results <<  t[:output]
 	end
 	return results
   end
   
   def follow_path 		#gets first step of path, converts it into either north, south, west or east
-		next_pos = @path[0]	
+		next_pos = @path[1]	
 
 		if next_pos[0] > @position[0]
 			puts "east"
@@ -176,78 +212,152 @@ class MyBot < BaseBot
 			puts "north"
 			return "North"
 		end
+		puts next_pos
+		puts "invalid path"
 	end
-  
-  def next_mine state, heroes, mines
-	@mp = state['@game']['board']['tiles']
-	@sz = state['@game']['board']['size']
-	@sz = @sz*2
-	@new_map = ""
-	(0..@mp.length - 1).step(@sz).each do |i|
-		@new_map << @mp[i..i+(@sz-1)].to_s + "\n"
-	end
-	y = 4
-	x = 0
-	@new_map[y*(@sz+1)+x] = "X"
-	@new_map[y*(@sz+1)+x+1] = "X"
-	puts "------------------\n" + @new_map + "\n-------------------"
-	
-#=begin
-	mines.each do |key, value|
-		m = TileMap::Map.new(@new_map,[ heroes["1"][1], heroes["1"][0]], [key[1],key[0]]) 	
-		results = TileMap.a_star_search(m)
-		t = m.get_tiles
-		for i in (0 .. t.length-1)
-			for j in (0 .. t[i].length)
-				if t[i][j] == nil
-					print "#"
-				else
-					for p in (0 .. results.length-1)
-						if results[p][0].to_i == j && results[p][1].to_i == i
-							t[i][j] = 8
-						end
-					end
-					print t[i][j]
-				end
-			end
-			puts
-		end
-		puts
-	end
-#=end
-
-  end
   
   def thread_find_paths map, my_pos, mine_pos 
+	new_map = map
 	x = mine_pos[0] 
 	y = mine_pos[1]
-	map[y*(@sz+1)+x*2] = "X"
-	map[y*(@sz+1)+x*2+1] = "X"
+	new_map[y*(@sz+1)+x*2] = "X"
+	new_map[y*(@sz+1)+x*2+1] = "X"
 
-	m = TileMap::Map.new(map, my_pos, mine_pos, @hero_no) 	
+	m = TileMap::Map.new(new_map, my_pos, mine_pos, @hero_no) 	
 	results = TileMap.a_star_search(m)
-=begin
-	t = m.get_tiles
-		for i in (0 .. t.length-1)
-			for j in (0 .. t[i].length)
-				if t[i][j] == nil
-					print "#"
-				else
-					for p in (0 .. results.length-1)
-						if results[p][0].to_i == j && results[p][1].to_i == i
-							t[i][j] = 8
-						end
-					end
-					print t[i][j]
-				end
-			end
-			puts
-		end
-		puts
-=end
-	Thread.current[:output] = results
+	return results
   
   end
   
+  def enemy_died?
+    if @prev_state.last_enemy_target.life + 51 < @curr_state.last_enemy_target.life
+      return true
+    end
+  end
+  def hero_died?
+    if @prev_state.life + 51 < @curr_state.life
+      return true
+    end
+  end
+  def mine_captured?
+  	if @curr_state.mine_count > @prev_state.mine_count
+		return true
+	end
+	if @curr_state.mine_count < @prev_state.mine_count
+		return false
+	end
+	@prev_state.mines_locs.each do |key, value|
+		if value == @hero_no && @curr_state.mines_locs[key] != value
+			return true
+		end
+	end
+  end
+  
+  def got_health?
+	puts "curr lfe ;" + @curr_state.life.to_s 
+	puts "prev life " + @prev_state.life.to_s
+    if @curr_state.life -@prev_state.life > 45 && @curr_state.life - @prev_state.life < 55
+      return true
+    end
+  end
+  
+  	def state_of_life life
+		case life
+		
+		when 0..24
+			return 'd'
+		when 25..49
+			return 'l'
+		when 50..74
+			return 'm'
+		when 75..100
+			return 'h'
+		else
+			raise "error, invalid health"
+		end
+	end
+	
+	def state_of_enemy_dist dist
+		case 
+		when dist<=1
+			return 'c'
+		when dist>1&&dist<=3
+			return 'm'
+		when dist>3 && dist<=5
+			return 'f'
+		when dist>5
+			return 'v'
+		else
+			raise "invalid enemy dist"
+		end
+	end
+	
+	def state_of_dist dist
+		case 
+		when dist <= 3
+			return 'c'
+		when dist > 3 && dist<=5
+			return 'm'
+		when dist >5 && dist <=10
+			return 'f'
+		when dist > 10
+			return 'v'
+		else
+			raise "invalid dist"
+		end
+	end
+	
+	def state_of_wealth mine_count, total_mines
+		mine_share = mine_count.to_f/total_mines.to_f*100.0
+		
+		case mine_share	
+		when  0..12.5
+			return 'l'
+		when 12.6..25.0
+			return 'm'
+		when 25.1..100
+			return 'h'
+		else
+			raise "invalid wealth"
+		end
+	end
+	
+	def calculate_rewards reason
+		case reason
+		when "mine"
+			reward = 5.0
+		when "kill"
+			reward = 10.0
+		when "tavern"
+			reward =1.0
+		when "died"
+			reward = -10.0
+		end
+		
+		values = []
+		@episode_array.each do |ep_array|
+			values = @hashTable[ep_array[0]]
+			sum = 0
+			if reward < 0
+				sum = (values[ep_array[1]].to_f/100.0)*reward*-1
+				values[ep_array[1]] -= sum
+				values.each_with_index do |v, i|
+					if ep_array[1] != i
+						v +=(sum/2)
+					end
+				end
+			else
+				values.each_with_index do |v, i|
+					if ep_array[1] != i
+						sum += (v/100.0)*reward
+						v -= (v/100.0)*reward
+					end
+				end
+				values[ep_array[1]] += sum
+			end
+			@hashTable[ep_array[0]] = values
+		end
+		@episode_array.clear
+	end
   
 end

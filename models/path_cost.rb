@@ -102,8 +102,8 @@ attr_accessor :north, :south, :east, :west
 	end
 	
 	def tavern_cost_function dist
-		tw = 100.0
-		result = tw*@mine_count*(25.0/@life) -0.1* (dist/((1.0/@life.to_f)+@mine_count.to_f))
+		tw = 10.0
+		result = tw*@mine_count*(15.0/@life) -0.1* (dist/((5.0/@life.to_f)+@mine_count.to_f))
 		puts "tav cost " + result.to_s
 		if result < 0
 			return 0

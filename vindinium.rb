@@ -7,7 +7,7 @@ class Vindinium
     opts.each_pair do |k,v|
       self.send("#{k}=", v)
     end
-
+	
     self.http_client = HTTPClient.new
     self.http_client.debug_dev=$stdout if self.debug
     self.server = "http://vindinium.org" if not self.server
@@ -39,7 +39,10 @@ class Vindinium
       self.state = self.move(url, direction)
 
     end
-
+	write_json = File.open("json.json", "w")
+	write_json.write(JSON.pretty_generate(bot.hashTable))
+	write_json.close
+	puts "written to json"
   end
 
   def move url, direction

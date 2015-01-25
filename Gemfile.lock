@@ -4,6 +4,7 @@ GEM
     PriorityQueue (0.1.2)
     awesome_print (1.2.0)
     httpclient (2.3.4.1)
+    json (1.5.5)
     rainbow (2.0.0)
 
 PLATFORMS
@@ -14,4 +15,5 @@ DEPENDENCIES
   PriorityQueue
   awesome_print
   httpclient
+  json
   rainbow

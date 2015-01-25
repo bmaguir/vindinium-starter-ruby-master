@@ -18,7 +18,9 @@ else
   end
 
   CONF[:server] = ARGV.shift if ARGV.length > 0
-  CONF[:bot] = MyBot.new
+  jFile = File.read("json.json")
+  readJson = JSON.parse(jFile)
+  CONF[:bot] = MyBot.new(readJson)
 
   game = Vindinium.new(CONF)
   game.start
