@@ -34,7 +34,7 @@ class MonteCarlo
 									str = ml + mw + el + ed + ew + md + td
 									puts str
 									keys<< str
-									hash[str] = [90, 106, 104]
+									hash[str] = [90.0, 106.0, 104.0]
 								end
 							end
 						end

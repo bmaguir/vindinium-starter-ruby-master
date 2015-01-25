@@ -53,7 +53,7 @@ attr_accessor :hashTable
 #		ep_end = "kill"
 	end
 	
-    @game = Game.new state
+    @game = @curr_state
 	
 	#switch x and y values 
 	@position = [ @game.heroes_locs[@hero_no][1], @game.heroes_locs[@hero_no][0]]
@@ -68,7 +68,7 @@ attr_accessor :hashTable
 		@new_map << @mp[i..i+(@sz-1)].to_s + "\n"
 	end
 	
-	path_cost = Path_Cost.new(@life, @mineCount, @game.mines_locs.length, @sz, @hero_no)
+	#path_cost = Path_Cost.new(@life, @mineCount, @game.mines_locs.length, @sz, @hero_no)
 	
 	#get distance and paths to taverns
 	tavern_paths = []
@@ -85,6 +85,9 @@ attr_accessor :hashTable
 	#get distance and paths to mines
 	mine_paths = []
 	mine_paths = find_mine
+	if mine_paths.empty?
+		mine_paths = tavern_paths
+	end
 	closest_mine = mine_paths[0]
 	min = mine_paths[0].length
 	mine_paths.each do |mp|
@@ -147,7 +150,7 @@ attr_accessor :hashTable
 		puts "going to tavern"
 	when 1
 		@path = closest_mine
-		puts "going to Mine"
+		puts "going to Mine"+ @path[0].to_s + @path[1].to_s
 	when 2
 		@path = closest_enemy
 		puts "going to kill"
@@ -217,7 +220,7 @@ attr_accessor :hashTable
 	end
   
   def thread_find_paths map, my_pos, mine_pos 
-	new_map = map
+	new_map = map.clone
 	x = mine_pos[0] 
 	y = mine_pos[1]
 	new_map[y*(@sz+1)+x*2] = "X"
@@ -241,24 +244,30 @@ attr_accessor :hashTable
   end
   def mine_captured?
   	if @curr_state.mine_count > @prev_state.mine_count
+		puts "new mine"
 		return true
 	end
 	if @curr_state.mine_count < @prev_state.mine_count
+	puts "lost mine"
 		return false
 	end
 	@prev_state.mines_locs.each do |key, value|
 		if value == @hero_no && @curr_state.mines_locs[key] != value
+			puts "prev = "+ value + " cur = " + @curr_state.mines_locs[key].to_s
 			return true
 		end
 	end
+	return false
   end
   
   def got_health?
 	puts "curr lfe ;" + @curr_state.life.to_s 
 	puts "prev life " + @prev_state.life.to_s
-    if @curr_state.life -@prev_state.life > 45 && @curr_state.life - @prev_state.life < 55
+    if (@curr_state.life - @prev_state.life) > 45 && (@curr_state.life - @prev_state.life) < 55
       return true
-    end
+    else
+		return false
+	end
   end
   
   	def state_of_life life
@@ -339,21 +348,24 @@ attr_accessor :hashTable
 			values = @hashTable[ep_array[0]]
 			sum = 0
 			if reward < 0
-				sum = (values[ep_array[1]].to_f/100.0)*reward*-1
+				sum = (values[ep_array[1]].to_f/100.0)*reward*-1.0
 				values[ep_array[1]] -= sum
 				values.each_with_index do |v, i|
 					if ep_array[1] != i
-						v +=(sum/2)
+						values[i]+=(sum.to_f/2.0)
 					end
 				end
 			else
 				values.each_with_index do |v, i|
 					if ep_array[1] != i
-						sum += (v/100.0)*reward
-						v -= (v/100.0)*reward
+						sum += (v.to_f/100.0)*reward
+						values[i] -= (v.to_f/100.0)*reward
 					end
 				end
 				values[ep_array[1]] += sum
+			end
+			if (values[0] + values[1] + values[2]) > 300.0 || (values[0] + values[1] + values[2]) < 300.0
+				raise "error calculating rewards " + (values[0] + values[1] + values[2]).to_s
 			end
 			@hashTable[ep_array[0]] = values
 		end
