@@ -12,6 +12,7 @@ attr_accessor :hashTable
 		@healing = false 
 		@curr_state = nil
 		@episode_array = []
+		@enemy_target = nil
 		@greed = 0.1
 	end
 
@@ -48,9 +49,9 @@ attr_accessor :hashTable
 		puts "I died"
 		ep_end = "died"
 		calculate_rewards ep_end
-#	when enemy_died?
-#		calculate_rewards ep_end
-#		ep_end = "kill"
+	when enemy_died?
+		calculate_rewards ep_end
+		ep_end = "kill"
 	end
 	
     @game = @curr_state
@@ -67,8 +68,6 @@ attr_accessor :hashTable
 	(0..@mp.length - 1).step(@sz).each do |i|		#add \n to get split in find path
 		@new_map << @mp[i..i+(@sz-1)].to_s + "\n"
 	end
-	
-	#path_cost = Path_Cost.new(@life, @mineCount, @game.mines_locs.length, @sz, @hero_no)
 	
 	#get distance and paths to taverns
 	tavern_paths = []
@@ -110,6 +109,8 @@ attr_accessor :hashTable
 		end
 	end
 	
+	@enemy_target = [enemy_index, closest_enemy.length]
+	
 	myL = state_of_life @life
 	myW = state_of_wealth @mine_count, @curr_state.mines_locs.length
 	eL = state_of_life l =  state["game"]["heroes"][enemy_index]["life"]
@@ -128,15 +129,17 @@ attr_accessor :hashTable
 	if rNext < 1.0 - @greed
 		next_move = move_choice.index(move_choice.max)
 	else
-		rChoice = r.rand(0..300)
+		rChoice = r.rand(0..299)
 		rSum = move_choice[0]
+		puts "rChoice: " + rChoice.to_s
 		i = 0
 		while rSum <= rChoice
-			rSum += move_choice[i]
+		puts "rSum: " + rSum.to_s
+			rSum += move_choice[i+1]
 			i += 1
 		end
-		puts i
-			next_move = i
+		puts "i: " + i.to_s
+		next_move = i
 	end
 	
 	
@@ -233,9 +236,16 @@ attr_accessor :hashTable
   end
   
   def enemy_died?
-    if @prev_state.last_enemy_target.life + 51 < @curr_state.last_enemy_target.life
-      return true
-    end
+	if @enemy_index == nil
+		return false
+	end
+	
+	if @enemy_target[1]<2
+		if @prev_state.state["game"]["heroes"][@enemy_target[0]]["life"] + 51 < @curr_state.state["game"]["heroes"][@enemy_target[0]]["life"] 
+		  return true
+		end
+	end
+	return false
   end
   def hero_died?
     if @prev_state.life + 51 < @curr_state.life
@@ -334,13 +344,13 @@ attr_accessor :hashTable
 	def calculate_rewards reason
 		case reason
 		when "mine"
-			reward = 5.0
+			reward = 5.0 - (@episode_array.length*0.1)
 		when "kill"
-			reward = 10.0
+			reward = 10.0 + (@curr_state.mine_count - @prev_state.mine_count)
 		when "tavern"
-			reward =1.0
+			reward =5.0 + @curr_state.mine_count
 		when "died"
-			reward = -10.0
+			reward = -10.0 - @prev_state.mine_count
 		end
 		
 		values = []
@@ -365,9 +375,10 @@ attr_accessor :hashTable
 				values[ep_array[1]] += sum
 			end
 			if (values[0] + values[1] + values[2]) > 300.0 || (values[0] + values[1] + values[2]) < 300.0
-				raise "error calculating rewards " + (values[0] + values[1] + values[2]).to_s
+				values[0] += ((values[0] + values[1] + values[2]) - 300.0)*-1
 			end
 			@hashTable[ep_array[0]] = values
+			reward = reward.to_f - (0.1*reward.to_f)
 		end
 		@episode_array.clear
 	end
