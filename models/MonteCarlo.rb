@@ -13,6 +13,8 @@ end
 
 class MonteCarlo
 
+	#initialize expected values 
+
 	def initialize
 		myL = ['d','l','m','h']
 		myW = ['l','m','h']

@@ -97,8 +97,8 @@ attr_accessor :hashTable
 	end
 	
 	enemies =[]
-	enemies = find_flanders
-	closest_enemy = find_flanders[0]
+	enemies = find_enemy
+	closest_enemy = enemies[0]
 	min = closest_enemy.length
 	enemy_index =0
 	enemies.each_with_index do |e, i|
@@ -111,6 +111,7 @@ attr_accessor :hashTable
 	
 	@enemy_target = [enemy_index, closest_enemy.length]
 	
+	#gets state parameters based on game stats
 	myL = state_of_life @life
 	myW = state_of_wealth @mine_count, @curr_state.mines_locs.length
 	eL = state_of_life l =  state["game"]["heroes"][enemy_index]["life"]
@@ -124,6 +125,8 @@ attr_accessor :hashTable
 	
 	move_choice = @hashTable[key]
 	
+	#chooses maximum expected reward 9 times out of 10
+	#picks a random action 10% of the time for exploration
 	r = Random.new
 	rNext = r.rand
 	if rNext < 1.0 - @greed
@@ -169,7 +172,8 @@ attr_accessor :hashTable
 	follow_path
   end
 
-  def find_flanders
+  def find_enemy
+	#gets shortest path to all enemy bots
 	results = []
 	@game.heroes_locs.each do |key, value|
 		if key != @hero_no
@@ -181,6 +185,7 @@ attr_accessor :hashTable
   end
   
   def find_tavern
+  #gets shortest path to all taverns
 	results = []
 	@game.taverns_locs.each do |locs|
 		tavern_pos = [locs[1],locs[0]]		#switch coordinates
@@ -190,6 +195,7 @@ attr_accessor :hashTable
   end
   
   def find_mine
+  #gets shortest path to all mines
 	results = []
 	@game.mines_locs.each do |key, value|
 		if value != @hero_no					#if not our mine already
@@ -223,10 +229,11 @@ attr_accessor :hashTable
 	end
   
   def thread_find_paths map, my_pos, mine_pos 
+  #calls A star algorithm to return shortest path
 	new_map = map.clone
 	x = mine_pos[0] 
 	y = mine_pos[1]
-	new_map[y*(@sz+1)+x*2] = "X"
+	new_map[y*(@sz+1)+x*2] = "X"				#x marks the spot
 	new_map[y*(@sz+1)+x*2+1] = "X"
 
 	m = TileMap::Map.new(new_map, my_pos, mine_pos, @hero_no) 	
@@ -236,10 +243,13 @@ attr_accessor :hashTable
   end
   
   def enemy_died?
-	if @enemy_index == nil
+  #returns true if agent has killed enemy
+  
+	if @enemy_index == nil		#if first turn return false
 		return false
 	end
 	
+	#if enemy within 2 steps & enemies life has gone from 0 - 99
 	if @enemy_target[1]<2
 		if @prev_state.state["game"]["heroes"][@enemy_target[0]]["life"] + 51 < @curr_state.state["game"]["heroes"][@enemy_target[0]]["life"] 
 		  return true
@@ -247,11 +257,13 @@ attr_accessor :hashTable
 	end
 	return false
   end
+  
   def hero_died?
     if @prev_state.life + 51 < @curr_state.life
       return true
     end
   end
+  
   def mine_captured?
   	if @curr_state.mine_count > @prev_state.mine_count
 		puts "new mine"
@@ -354,6 +366,7 @@ attr_accessor :hashTable
 		when "died"
 			reward = -10.0 - @prev_state.mine_count
 		end
+		
 		
 		values = []
 		@episode_array.each do |ep_array|
