@@ -297,6 +297,7 @@ attr_accessor :hashTable
 	end
 	
 	def state_of_enemy_dist dist
+		dist = dist*(@sz/20)
 		case 
 		when dist<=1
 			return 'c'
@@ -312,6 +313,7 @@ attr_accessor :hashTable
 	end
 	
 	def state_of_dist dist
+		dist = dist*(@sz/20)
 		case 
 		when dist <= 3
 			return 'c'
