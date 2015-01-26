@@ -9,6 +9,7 @@ class Vindinium
     end
 	
     self.http_client = HTTPClient.new
+	self.http_client.receive_timeout = 10000
     self.http_client.debug_dev=$stdout if self.debug
     self.server = "http://vindinium.org" if not self.server
   end
@@ -43,6 +44,12 @@ class Vindinium
 	write_json.write(JSON.pretty_generate(bot.hashTable))
 	write_json.close
 	puts "written to json"
+	
+	file_name = Time.now.to_i
+	file_name = file_name.to_s
+	out_file = File.new(file_name, "w")
+	out_file.write(JSON.pretty_generate(bot.hashTable))
+	out_file.close
   end
 
   def move url, direction
@@ -54,7 +61,7 @@ class Vindinium
     params = {key: self.key}
     if training?
       params[:turns] = self.turns 
-      params[:map] = 'm1'
+      params[:map] = ''
     end
 
     process_http_response http_client.post("#{self.server}/api/#{self.mode}", params)

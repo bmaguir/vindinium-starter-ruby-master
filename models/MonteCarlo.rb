@@ -32,7 +32,7 @@ class MonteCarlo
 							mD.each do |md|
 								tD.each do |td|
 									str = ml + mw + el + ed + ew + md + td
-									puts str
+									#puts str
 									keys<< str
 									hash[str] = [90.0, 106.0, 104.0]
 								end
